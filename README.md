@@ -1,10 +1,8 @@
 # 时钟屏保 · Clock Screensaver
 
-![alt text](image.png)
-
 A beautiful fullscreen clock screensaver for macOS, built with Electron.
 
-![preview](https://raw.githubusercontent.com/Masir1128/clock-screensave/main/assets/preview.png)
+![preview](assets/preview.png)
 
 ## 功能特性
 
