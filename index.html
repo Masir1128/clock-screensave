@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'">
+<title>时钟</title>
+<style>
+  :root {
+    --g1: #6ee7f7;
+    --g2: #7c3aed;
+    --g3: #ec4899;
+    --glow: rgba(110, 231, 247, 0.2);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #000;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'SF Mono', 'Menlo', 'Monaco', ui-monospace, monospace;
+  }
+
+  /* 星空画布 */
+  #bg { position: fixed; inset: 0; z-index: 0; }
+
+  /* 时钟区域（防烧屏漂移） */
+  .wrap {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3.5vh;
+    transition: transform 12s ease-in-out;
+  }
+
+  /* 渐变文字 */
+  .time {
+    font-size: 13vw;
+    font-weight: 200;
+    letter-spacing: 0.06em;
+    line-height: 1;
+    background: linear-gradient(90deg, var(--g1), var(--g2), var(--g3), var(--g1));
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 30px var(--glow)) drop-shadow(0 0 80px var(--glow));
+    animation: gradFlow 12s ease-in-out infinite;
+    transition: filter 0.5s;
+  }
+
+  @keyframes gradFlow {
+    0%, 100% { background-position: 0% center; }
+    50%       { background-position: 100% center; }
+  }
+
+  .date {
+    position: relative;
+    z-index: 1;
+    font-size: 1.8vw;
+    font-family: -apple-system, 'Helvetica Neue', sans-serif;
+    font-weight: 300;
+    color: var(--g1);
+    opacity: 0.4;
+    letter-spacing: 0.3em;
+    transition: color 0.6s;
+  }
+
+  /* ──── 底部控制条 ──── */
+  .controls {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50px;
+    padding: 8px 14px;
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+  }
+
+  .dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    flex-shrink: 0;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .dot:hover { transform: scale(1.2); }
+  .dot.active { border-color: rgba(255, 255, 255, 0.85); }
+
+  /* 自定义单色选择器 */
+  .pick-wrap {
+    position: relative;
+    width: 22px; height: 22px;
+    flex-shrink: 0;
+  }
+  .pick-swatch {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    border: 2px dashed rgba(255, 255, 255, 0.35);
+    background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red);
+    pointer-events: none;
+    transition: transform 0.15s;
+  }
+  .pick-wrap:hover .pick-swatch { transform: scale(1.2); }
+  .pick-wrap input[type="color"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+    width: 100%; height: 100%;
+  }
+
+  .sep {
+    width: 1px; height: 16px;
+    background: rgba(255, 255, 255, 0.15);
+    margin: 0 4px;
+    flex-shrink: 0;
+  }
+
+  .close-btn {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: background 0.2s, color 0.2s;
+  }
+  .close-btn:hover { background: rgba(255, 60, 60, 0.45); color: #fff; }
+</style>
+</head>
+<body>
+
+<canvas id="bg"></canvas>
+
+<div class="wrap" id="wrap">
+  <div class="time" id="time">00:00:00</div>
+  <div class="date" id="date"></div>
+</div>
+
+<div class="controls">
+  <div id="presets" style="display:flex;align-items:center;gap:6px;"></div>
+  <div class="pick-wrap" title="自定义单色">
+    <div class="pick-swatch"></div>
+    <input type="color" id="picker">
+  </div>
+  <div class="sep"></div>
+  <button class="close-btn" id="closeBtn" title="关闭 (ESC)">✕</button>
+</div>
+
+<script>
+// ── 渐变预设 (8种) ──
+const PRESETS = [
+  { stops: ['#6ee7f7', '#7c3aed', '#ec4899'], name: '极光' },
+  { stops: ['#f97316', '#ef4444', '#a855f7'], name: '日落' },
+  { stops: ['#06b6d4', '#3b82f6', '#6366f1'], name: '海洋' },
+  { stops: ['#10b981', '#06b6d4', '#3b82f6'], name: '森林' },
+  { stops: ['#fbbf24', '#f97316', '#ef4444'], name: '黄金' },
+  { stops: ['#a3e635', '#34d399', '#06b6d4'], name: '霓虹' },
+  { stops: ['#fb7185', '#a855f7', '#6366f1'], name: '玫瑰' },
+  { stops: ['#ffffff', '#c0d8ff', '#ffffff'], name: '纯白' },
+]
+
+const WEEK = ['日','一','二','三','四','五','六']
+
+// ── 应用渐变色 ──
+function applyPreset(preset, save = true) {
+  const root = document.documentElement
+  const [g1, g2, g3 = g1] = preset.stops
+  root.style.setProperty('--g1', g1)
+  root.style.setProperty('--g2', g2)
+  root.style.setProperty('--g3', g3)
+  const [r,g,b] = g1.match(/\w\w/g).map(x => parseInt(x,16))
+  root.style.setProperty('--glow', `rgba(${r},${g},${b},0.22)`)
+  document.getElementById('date').style.color = g1
+  document.querySelectorAll('.dot').forEach((d, i) => {
+    d.classList.toggle('active', PRESETS[i] === preset)
+  })
+  if (save) window.api?.saveColor(JSON.stringify(preset.stops))
+}
+
+// 单色模式（颜色选择器直接选）
+function applySolidColor(hex) {
+  applyPreset({ stops: [hex, hex, hex], name: 'custom' }, false)
+  window.api?.saveColor(JSON.stringify([hex, hex, hex]))
+}
+
+// ── 构建预设点 ──
+function buildPresets() {
+  const box = document.getElementById('presets')
+  PRESETS.forEach(p => {
+    const d = document.createElement('div')
+    d.className = 'dot'
+    d.style.background = `linear-gradient(135deg, ${p.stops.join(',')})`
+    d.title = p.name
+    d.addEventListener('click', () => applyPreset(p))
+    box.appendChild(d)
+  })
+}
+
+// ── 时钟 ──
+function updateClock() {
+  const now = new Date()
+  document.getElementById('time').textContent =
+    `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`
+  const ms = '1月,2月,3月,4月,5月,6月,7月,8月,9月,10月,11月,12月'.split(',')
+  document.getElementById('date').textContent =
+    `${now.getFullYear()} 年 ${ms[now.getMonth()]} ${now.getDate()} 日  星期${WEEK[now.getDay()]}`
+}
+
+// ── 防烧屏漂移 ──
+function drift() {
+  const x = (Math.random()-.5)*100, y = (Math.random()-.5)*100
+  document.getElementById('wrap').style.transform = `translate(${x}px,${y}px)`
+}
+
+// ── 星空 ──
+const bgCanvas = document.getElementById('bg')
+const bgCtx = bgCanvas.getContext('2d')
+let stars = []
+
+function initStars() {
+  bgCanvas.width = window.innerWidth
+  bgCanvas.height = window.innerHeight
+  const n = Math.floor(bgCanvas.width * bgCanvas.height / 3500)
+  stars = Array.from({ length: n }, () => ({
+    x: Math.random() * bgCanvas.width,
+    y: Math.random() * bgCanvas.height,
+    r: Math.random() * 1.6 + 0.25,
+    base: Math.random() * 0.65 + 0.15,
+    twinkle: Math.random() * 0.025 + 0.004,
+    phase: Math.random() * Math.PI * 2,
+    vx: (Math.random() - .5) * 0.035,
+    vy: (Math.random() - .5) * 0.035,
+  }))
+}
+
+function drawStars(t) {
+  bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height)
+  for (const s of stars) {
+    // 漂移
+    s.x += s.vx; s.y += s.vy
+    if (s.x < -2) s.x = bgCanvas.width + 2
+    else if (s.x > bgCanvas.width + 2) s.x = -2
+    if (s.y < -2) s.y = bgCanvas.height + 2
+    else if (s.y > bgCanvas.height + 2) s.y = -2
+
+    const alpha = s.base * (0.6 + 0.4 * Math.sin(t * 0.001 * s.twinkle * 60 + s.phase))
+
+    // 大星星加光晕
+    if (s.r > 1.1) {
+      const grd = bgCtx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r * 5)
+      grd.addColorStop(0, `rgba(200,220,255,${alpha * 0.5})`)
+      grd.addColorStop(1, 'rgba(200,220,255,0)')
+      bgCtx.fillStyle = grd
+      bgCtx.beginPath()
+      bgCtx.arc(s.x, s.y, s.r * 5, 0, Math.PI * 2)
+      bgCtx.fill()
+    }
+
+    bgCtx.globalAlpha = alpha
+    bgCtx.fillStyle = '#ddeeff'
+    bgCtx.beginPath()
+    bgCtx.arc(s.x, s.y, s.r, 0, Math.PI * 2)
+    bgCtx.fill()
+    bgCtx.globalAlpha = 1
+  }
+  requestAnimationFrame(drawStars)
+}
+
+// ── 生成图标 ──
+function drawClockIcon(size, withBg) {
+  const c = document.createElement('canvas')
+  c.width = c.height = size
+  const x = c.getContext('2d')
+  const cx = size/2, cy = size/2
+  if (withBg) {
+    x.fillStyle = '#0d0d1a'
+    x.beginPath(); x.roundRect(0,0,size,size,size*0.2); x.fill()
+  }
+  const cr = size*(withBg?.34:.43), lw = size*.055
+  x.strokeStyle='white'; x.lineWidth=lw
+  x.beginPath(); x.arc(cx,cy,cr,0,Math.PI*2); x.stroke()
+  ;[0,1,2,3].forEach(i=>{
+    const a=i*Math.PI/2-Math.PI/2
+    x.fillStyle='white'; x.beginPath()
+    x.arc(cx+Math.cos(a)*cr*.8,cy+Math.sin(a)*cr*.8,lw*.6,0,Math.PI*2); x.fill()
+  })
+  x.lineCap='round'
+  const hA=(10/12)*Math.PI*2-Math.PI/2
+  x.strokeStyle='white'; x.lineWidth=lw*1.3
+  x.beginPath(); x.moveTo(cx,cy)
+  x.lineTo(cx+Math.cos(hA)*cr*.52,cy+Math.sin(hA)*cr*.52); x.stroke()
+  const mA=(10/60)*Math.PI*2-Math.PI/2
+  x.lineWidth=lw; x.beginPath(); x.moveTo(cx,cy)
+  x.lineTo(cx+Math.cos(mA)*cr*.73,cy+Math.sin(mA)*cr*.73); x.stroke()
+  x.fillStyle='white'; x.beginPath(); x.arc(cx,cy,lw*.8,0,Math.PI*2); x.fill()
+  return c.toDataURL('image/png')
+}
+
+// ── 事件绑定 ──
+document.getElementById('closeBtn').addEventListener('click', () => window.api?.hide())
+document.addEventListener('keydown', e => { if (e.key === 'Escape') window.api?.hide() })
+document.getElementById('picker').addEventListener('input', e => applySolidColor(e.target.value))
+window.addEventListener('resize', initStars)
+
+// ── 启动 ──
+buildPresets()
+updateClock()
+setInterval(updateClock, 1000)
+setInterval(drift, 60000)
+initStars()
+requestAnimationFrame(drawStars)
+
+;(async () => {
+  const saved = await window.api?.getColor()
+  if (saved) {
+    try {
+      const stops = JSON.parse(saved)
+      const match = PRESETS.find(p => JSON.stringify(p.stops) === JSON.stringify(stops))
+      applyPreset(match || { stops, name: 'custom' }, false)
+    } catch { applyPreset(PRESETS[0], false) }
+  } else {
+    applyPreset(PRESETS[0], false)
+  }
+  window.api?.setIcons(drawClockIcon(44, false), drawClockIcon(512, true))
+})()
+
+window.api?.onSetColor(c => {
+  try {
+    const stops = JSON.parse(c)
+    const match = PRESETS.find(p => JSON.stringify(p.stops) === JSON.stringify(stops))
+    applyPreset(match || { stops, name: 'custom' }, false)
+  } catch { applyPreset(PRESETS[0], false) }
+})
+</script>
+</body>
+</html>
