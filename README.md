@@ -1,5 +1,7 @@
 # 时钟屏保 · Clock Screensaver
 
+![alt text](image.png)
+
 A beautiful fullscreen clock screensaver for macOS, built with Electron.
 
 ![preview](https://raw.githubusercontent.com/Masir1128/clock-screensave/main/assets/preview.png)
@@ -133,72 +135,6 @@ dist/
 ```
 
 实际文件名会根据 `package.json` 中的 `version` 和 `productName` 变化。
-
-## 更新代码到 GitHub
-
-如果只是更新当前 GitHub 仓库代码，可以按下面流程操作。
-
-### 1. 查看改动
-
-```bash
-git status
-git diff
-```
-
-### 2. 提交代码
-
-```bash
-git add main.js preload.js index.html README.md
-git commit -m "Update clock settings and background options"
-```
-
-### 3. 推送到 GitHub
-
-```bash
-git push origin main
-```
-
-推送后，GitHub 仓库里的代码就会更新。
-
-## 发布新的 GitHub Release
-
-如果还要把新打包的 DMG 作为新版本发布，可以继续执行下面步骤。
-
-### 1. 更新版本号
-
-在 `package.json` 中修改：
-
-```json
-"version": "1.0.1"
-```
-
-例如从 `1.0.0` 改成 `1.0.1`。
-
-### 2. 重新打包
-
-```bash
-npm run build
-```
-
-### 3. 创建 tag
-
-```bash
-git add package.json package-lock.json
-git commit -m "Bump version to 1.0.1"
-git tag v1.0.1
-git push origin main
-git push origin v1.0.1
-```
-
-### 4. 上传 DMG
-
-打开 GitHub 仓库页面：
-
-```text
-https://github.com/Masir1128/clock-screensave/releases
-```
-
-点击 **Draft a new release**，选择刚推送的 tag，例如 `v1.0.1`，然后上传 `dist/` 目录里的 `.dmg` 文件。
 
 ## 常见问题
 
