@@ -13,7 +13,13 @@ let needsIdleReset = false  // 用户关闭后，等 idle 先降下来再允许�
 let idleTimer = null
 
 const cfgFile = path.join(app.getPath('userData'), 'config.json')
-const cfg = { idleSeconds: 120, color: '#ffffff', background: 'stars', backgroundImage: '' }
+const cfg = {
+  idleSeconds: 120,
+  color: '#ffffff',
+  background: 'stars',
+  backgroundImage: '',
+  timeZone: 'local',
+}
 
 function loadCfg() {
   try { Object.assign(cfg, JSON.parse(fs.readFileSync(cfgFile, 'utf8'))) } catch {}
@@ -58,6 +64,7 @@ function createWindowForDisplay(d) {
   w.webContents.once('did-finish-load', () => {
     w.webContents.send('set-color', cfg.color)
     w.webContents.send('set-background', getBackgroundState())
+    w.webContents.send('set-timezone', cfg.timeZone)
     // 如果此时应该显示（比如启动时 showClock 先于加载完成），补显示
     if (visible) {
       w.setAlwaysOnTop(true, 'screen-saver')
@@ -207,6 +214,12 @@ ipcMain.handle('choose-background-image', async event => {
 })
 ipcMain.on('set-idle', (_, secs) => { cfg.idleSeconds = secs; saveCfg(); refreshMenu() })
 ipcMain.handle('get-idle', () => cfg.idleSeconds)
+ipcMain.on('set-timezone', (_, timeZone) => {
+  cfg.timeZone = timeZone || 'local'
+  saveCfg()
+  broadcast('set-timezone', cfg.timeZone)
+})
+ipcMain.handle('get-timezone', () => cfg.timeZone)
 
 ipcMain.on('set-icons', (_, trayUrl, dockUrl) => {
   try { app.dock?.setIcon(nativeImage.createFromDataURL(dockUrl)) } catch {}

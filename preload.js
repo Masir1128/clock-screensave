@@ -12,5 +12,8 @@ contextBridge.exposeInMainWorld('api', {
   setIcons: (trayUrl, dockUrl) => ipcRenderer.send('set-icons', trayUrl, dockUrl),
   setIdle: secs => ipcRenderer.send('set-idle', secs),
   getIdle: () => ipcRenderer.invoke('get-idle'),
+  setTimeZone: timeZone => ipcRenderer.send('set-timezone', timeZone),
+  getTimeZone: () => ipcRenderer.invoke('get-timezone'),
+  onSetTimeZone: cb => ipcRenderer.on('set-timezone', (_, tz) => cb(tz)),
   dismissIfAuto: () => ipcRenderer.send('dismiss-if-auto'),
 })
